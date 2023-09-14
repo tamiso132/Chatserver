@@ -21,6 +21,23 @@ pub struct Product {
     pub(crate) name: [u8; 25],
     pub(crate) category_id: CategoryId,
     pub(crate) brand_id: BrandId,
+    pub(crate) sold: bool,
+}
+
+pub struct CompactProduct {
+    pub(crate) name: [u8; 25],
+    pub(crate) category_id: CategoryId,
+    pub(crate) brand_id: BrandId,
+}
+
+impl From<Product> for CompactProduct {
+    fn from(value: Product) -> Self {
+        Self {
+            name: value.name,
+            category_id: value.category_id,
+            brand_id: value.brand_id,
+        }
+    }
 }
 
 impl Default for Product {
@@ -30,6 +47,7 @@ impl Default for Product {
             name: Default::default(),
             category_id: Default::default(),
             brand_id: Default::default(),
+            sold: false,
         }
     }
 }

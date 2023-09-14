@@ -4,14 +4,14 @@ macro_rules! create_id {
     ($name:ident) => {
         #[derive(Deserialize, Serialize)]
         pub struct $name {
+            pub(crate) ver: u16,
             pub(crate) id: u16,
-            pub(crate) version: u8,
         }
         impl Default for $name {
             fn default() -> Self {
                 Self {
+                    ver:Default::default(),
                     id: Default::default(),
-                    version: Default::default(),
                 }
             }
         }
