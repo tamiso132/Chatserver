@@ -7,7 +7,7 @@ use tokio::{
 };
 
 use crate::relational::TableInfo;
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(serde_derive::Serialize, Deserialize, Clone, Copy)]
 enum Event {
     Add = 0,
     Remove = 1,
@@ -31,7 +31,7 @@ impl Event {
 }
 
 async fn connect_to_server(secret: String) -> Result<TcpStream, Box<dyn Error>> {
-    let mut stream = TcpStream::connect("37.208.27.16:2000").await?;
+    let mut stream = TcpStream::connect("37.208.27.16:2000").await?; // hard coded
     stream.write_all(secret.as_bytes()).await?;
 
     let mut response = String::new();

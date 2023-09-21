@@ -6,7 +6,8 @@ use bincode::{deserialize, serialize, ErrorKind};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::mem::size_of_val;
-use std::os::unix::prelude::FileExt;
+//use std::os::unix::prelude::FileExt;
+use std::os::windows::fs::FileExt;
 
 use crate::relational::FreeList;
 
@@ -14,7 +15,6 @@ pub mod file {
     use std::{
         fs::OpenOptions,
         io::{self, Read, Seek, Write},
-        os::unix::prelude::FileExt,
     };
 
     pub enum FileIntention {
@@ -66,7 +66,7 @@ pub mod file {
                 }
                 FileIntention::Update(info) => {
                     let file_offset = info.offset + info.el.len() * info.index;
-                    file.write_all_at(&info.el, file_offset as u64)?;
+                   // file.write_all_at(&info.el, file_offset as u64)?;
                 }
 
                 FileIntention::Insert(info) => {
@@ -111,65 +111,26 @@ where
     Ok(())
 }
 
-pub fn remove_element(file_path: &str, ones: &Vec<u8>, index: usize, offset: usize) {
-    let file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .append(true) // Append mode
-        .open(file_path)
-        .unwrap();
-
-    file.write_at(&ones, (ones.len() * index + offset) as u64)
-        .expect("Error removing");
-}
-
-pub fn remove_element_option<T>(file_path: &str, n: Option<T>, index: usize, offset: usize)
-where
-    T: serde::Serialize,
-{
-    let file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .append(true) // Append mode
-        .open(file_path)
-        .unwrap();
-
-    let y = bincode::serialize(&n).unwrap();
-    let s = size_of_val(&n);
-    file.write_at(&y, (y.len() * index + offset) as u64)
-        .expect("Error removing");
-}
-
-pub fn remove_elements(
-    file_path: &str,
-    ones: &Vec<u8>,
-    index: usize,
-    amount: usize,
-    offset: usize,
-) {
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .append(true) // Append mode
-        .open(file_path)
-        .unwrap();
-
-    let buffer: Vec<u8> = vec![0; amount * ones.len()];
-    file.write_at(&buffer, (ones.len() * index + offset) as u64)
-        .expect("Error removing");
-}
 pub fn update_element<T>(file_name: &str, index: usize, data: &T, offset: usize)
 where
     T: serde::Serialize,
 {
-    let file = OpenOptions::new()
+    let mut file = OpenOptions::new()
         .write(true)
         .create(true)
         .open(file_name)
         .unwrap();
     let seri = bincode::serialize(data).unwrap();
     let off = seri.len() * index + offset;
-    file.write_at(&seri, off as u64);
+
+    #[cfg(target_os = "windows")]{
+        file.seek(SeekFrom::Start(off as u64));
+        file.write_all(&seri);
+    }
+
+    #[cfg(target_os = "linux")]{
+        file.write_at(&seri, off as u64);
+    }
 }
 
 pub fn insert_at_index<T>(file_name: &String, index: usize, data: &T, offset: usize)

@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, ops::Add, vec};
+use std::{marker::PhantomData, ops::Add, vec, collections::HashMap};
 
 use chrono::{Datelike, Utc};
 use serde_derive::{Deserialize, Serialize};
@@ -13,7 +13,7 @@ pub(super) mod id;
 pub(super) mod types;
 
 const VERSION_NAME: &str = "_version";
-const VERSION_ITEM_NAME: &str = "_old_records";
+const VERSION_OLD_ITEM: &str = "_old_records";
 const FREE_NAME: &str = "_freelist";
 
 #[derive(Deserialize, Serialize)]
@@ -197,20 +197,28 @@ impl FreeList {
     }
 }
 
-pub struct VersionControl<T: serde::Serialize + serde::de::DeserializeOwned> {
+
+pub struct VersionControl<T: serde::Serialize + serde::de::DeserializeOwned + Clone> {
     /// Keep track of current versions of all table records
     ///
     ver: Vec<u16>,
-    data: PhantomData<T>,
+    old_data: HashMap<(u16,u16), T>,
+
     version_filename: String,
+    old_data_filename: String,
 }
-impl<T: serde::Serialize + serde::de::DeserializeOwned> VersionControl<T> {
+impl<T: serde::Serialize + serde::de::DeserializeOwned + Clone> VersionControl<T> {
     pub fn new(filename: &str) -> Self {
-        let ver_filename = format!("{}{}", filename, VERSION_NAME);
+        
+        let version_filename = format!("{}{}", filename, VERSION_NAME);
+        let old_data_filename = format!("{}{}", filename, VERSION_OLD_ITEM);
+
+        let d = HashMap::default();
         Self {
+            old_data: d,
             ver: vec![],
-            data: Default::default(),
-            version_filename: ver_filename,
+            version_filename,
+            old_data_filename
         }
     }
     pub fn push(&mut self) {
@@ -220,21 +228,22 @@ impl<T: serde::Serialize + serde::de::DeserializeOwned> VersionControl<T> {
         self.ver[index] += 1;
     }
     pub fn update_existing_slot(&mut self, index: usize, old_data: &T) {
-        self.ver[index] += 1;
-        let mut filename = Utc::now().year().to_string();
+        
+        let current_ver = self.ver[index];
+        
 
-        filename.push_str(&Utc::now().month0().to_string());
-        let _ = storage::push_to_file::<T>(&filename, old_data);
+        self.old_data.insert((index as u16, current_ver), old_data.clone());
+        
+        self.ver[index] += 1;
     }
-    pub fn removed_existing_record(&mut self, removed_data: &T) {
-        let mut filename = Utc::now().year().to_string();
-        filename.push_str(&Utc::now().month0().to_string());
-        let _ = storage::push_to_file::<T>(&filename, removed_data);
+    pub fn removed_existing_record(&mut self, removed_data: &T, index:u16) {
+        self.old_data.insert((index, self.ver[index as usize]), removed_data.clone());
+        self.ver[index as usize] += 1;
     }
 }
 pub struct TableVer<T>
 where
-    T: for<'a> serde::Deserialize<'a> + serde::Serialize + Default,
+    T: for<'a> serde::Deserialize<'a> + serde::Serialize + Default + Clone,
 {
     // can have a STable of every category
     vec: Vec<Option<T>>,
@@ -244,7 +253,7 @@ where
 }
 impl<T> TableVer<T>
 where
-    T: for<'a> serde::Deserialize<'a> + serde::Serialize + Default,
+    T: for<'a> serde::Deserialize<'a> + serde::Serialize + Default + Clone,
 {
     fn new(name: &str) -> TableVer<T> {
         let free_list = FreeList::new(name.to_owned() + FREE_NAME);
@@ -307,7 +316,6 @@ where
         }
 
         self.vec[index_remove as usize] = None;
-        storage::remove_element_option::<T>(&self.filename, None, index_remove as usize, 0);
     }
     /// for debug purposes only
     fn print_free(&self) {

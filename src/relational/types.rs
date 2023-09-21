@@ -15,13 +15,11 @@ pub struct Order {
     product_amount: u8,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Product {
-    pub(crate) id: ProductId,
     pub(crate) name: [u8; 25],
     pub(crate) category_id: CategoryId,
     pub(crate) brand_id: BrandId,
-    pub(crate) sold: bool,
 }
 
 pub struct CompactProduct {
@@ -43,11 +41,9 @@ impl From<Product> for CompactProduct {
 impl Default for Product {
     fn default() -> Self {
         Self {
-            id: Default::default(),
             name: Default::default(),
             category_id: Default::default(),
             brand_id: Default::default(),
-            sold: false,
         }
     }
 }

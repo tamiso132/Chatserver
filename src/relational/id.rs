@@ -2,7 +2,7 @@ use serde_derive::{Deserialize, Serialize};
 
 macro_rules! create_id {
     ($name:ident) => {
-        #[derive(Deserialize, Serialize)]
+        #[derive(Deserialize, Serialize, Clone)]
         pub struct $name {
             pub(crate) ver: u16,
             pub(crate) id: u16,
