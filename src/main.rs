@@ -28,7 +28,7 @@ fn handle_client(mut stream: TcpStream) {
 }
 
 fn main() -> std::io::Result<()> {
-    relational::bench_test();
+    // relational::bench_test();
     // thread::spawn(move || {
     //     for (stream) in listener.incoming() {
     //         match stream {
