@@ -1,0 +1,238 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f0f0f0;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    height: 100vh;
+}
+
+#main-panel {
+    width: 80%;
+    background-color: #fff;
+    display: flex;
+    flex-direction: column;
+}
+
+#chat-box {
+    flex-grow: 2;
+    overflow-y: scroll;
+    padding: 10px;
+}
+
+#side-panel {
+    width: 20%;
+    background-color: #f2f2f2;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-room {
+    cursor: pointer;
+    margin: 5px;
+}
+
+.chat-room:hover {
+    background-color: #d9d9d9;
+}
+
+#message-input {
+    width: 100%;
+    padding: 5px;
+    border: 1px solid #ccc;
+    margin-top: 10px;
+}
+
+#send-button {
+    background-color: #007bff;
+    color: #fff;
+    border: none;
+    padding: 5px 10px;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+#send-button:hover {
+    background-color: #0056b3;
+}
+
+#create-room-button {
+    background-color: #28a745;
+    color: #fff;
+    border: none;
+    padding: 5px 10px;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+#create-room-button:hover {
+    background-color: #218838;
+}
+
+.hidden {
+    display: none;
+}
+
+.modal-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    text-align: center;
+    position: relative;
+    transform: translateY(-50%);
+}
+
+.friend-list {
+    list-style: none;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.friend-list li {
+    display: flex;
+    align-items: center;
+    margin: 5px;
+}
+
+.friend-checkbox {
+    margin-right: 10px;
+}
+
+#confirm-button,
+#cancel-button {
+    background-color: #007bff;
+    color: #fff;
+    border: none;
+    padding: 5px 10px;
+    cursor: pointer;
+}
+
+#confirm-button:hover,
+#cancel-button:hover {
+    background-color: #0056b3;
+}
+
+/* Styles for the Add Friend section */
+#add-friend-section {
+    padding: 10px;
+    background-color: #f2f2f2;
+}
+
+#add-friend-button {
+    background-color: #28a745;
+    color: #fff;
+    border: none;
+    padding: 5px 10px;
+    cursor: pointer;
+}
+
+#add-friend-button:hover {
+    background-color: #218838;
+}
+
+/* Styles for the settings menu */
+#settings-menu {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    cursor: pointer;
+}
+
+#settings-icon {
+    width: 20px;
+    height: 20px;
+}
+
+#settings-options {
+    position: absolute;
+    top: 35px;
+    right: 10px;
+    background-color: #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    display: none;
+}
+
+#settings-options ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#settings-options li {
+    padding: 10px;
+    cursor: pointer;
+}
+
+#settings-options li:hover {
+    background-color: #f2f2f2;
+}
+
+#settings-icon {
+    width: 30px;
+    height: 30px;
+    position: relative;
+    cursor: pointer;
+}
+
+#settings-icon .bar {
+    width: 100%;
+    height: 4px;
+    background-color: #333;
+    margin: 6px 0;
+    transition: 0.4s;
+}
+
+#settings-icon:hover .bar {
+    background-color: #007bff;
+}
+
+@media (max-width: 768px) {
+
+    /* Styles for screens with a maximum width of 768px (e.g., tablets and mobile devices) */
+    #main-panel {
+        width: 100%;
+    }
+
+    #side-panel {
+        width: 100%;
+    }
+
+    .chat-room {
+        margin: 2px;
+    }
+
+    #message-input {
+        margin-top: 5px;
+    }
+
+    #send-button {
+        margin-top: 5px;
+    }
+
+    #create-room-button {
+        margin-top: 5px;
+    }
+
+    .friend-list {
+        max-height: 150px;
+    }
+
+    #settings-options {
+        top: 30px;
+    }
+}

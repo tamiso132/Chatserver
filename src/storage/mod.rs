@@ -1,10 +1,10 @@
+#![feature(generic_const_exprs)]
 // this is being used by my rasperry pi
-
 mod db;
 
 use std::io::SeekFrom;
 use std::mem::{self, align_of, size_of, transmute};
-use std::ptr;
+use std::ptr::{self, copy_nonoverlapping};
 
 use tokio::fs::{File, OpenOptions};
 use tokio::io::{self, AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
@@ -35,6 +35,12 @@ impl<T> Overwrite<T> {
     }
 }
 
+// trait OnChange<T> {
+//     // maybe have later
+//     fn on_overwrite(overwrite: &mut Mutex<Overwrite<T>>);
+//     fn on_append(append: Mutex<Vec<T>>);
+// }
+
 pub struct FileQueueGlobal<T> {
     filename: String,
     append: Mutex<Vec<T>>,
@@ -49,6 +55,12 @@ impl<T> FileQueueGlobal<T> {
             append: Mutex::new(vec![]),
             overwrite: Mutex::new(overwrite),
         }
+    }
+    fn add_overwrite(&mut self, mut val: OverwriteInfo<T>) {
+        self.overwrite.get_mut().over_write.push(val);
+    }
+    fn add_append(&mut self, mut val: Vec<T>) {
+        self.append.get_mut().append(&mut val);
     }
 
     fn run() {}
@@ -98,6 +110,19 @@ pub async fn run_queue_write<T>(file_queue: FileQueueGlobal<T>) -> io::Result<()
     Ok(())
 }
 
+pub async fn read_all<T>(filename: String) -> io::Result<Vec<T>> {
+    let mut options = OpenOptions::new();
+    let mut file = options.read(true).open(filename).await?;
+    let file_size = file.metadata().await?.len();
+
+    let mut buffer = vec![0; file_size as usize];
+    let mut ret: Vec<T> = Vec::with_capacity(file_size as usize);
+    file.read_to_end(&mut buffer).await?;
+
+    let ret = from_bytes_vec(buffer);
+    Ok(ret)
+}
+
 /// This works things with primitive fields structs only and no pointers
 fn to_bytes<T>(value: &T) -> Vec<u8> {
     let size = size_of::<T>();
@@ -138,6 +163,19 @@ fn to_bytes_vec<T>(value: &Vec<T>) -> Vec<u8> {
         );
     }
     bytes
+}
+
+fn from_bytes_vec<T>(mut value: Vec<u8>) -> Vec<T> {
+    unsafe {
+        let size = value.len() / size_of::<T>();
+        let mut buffer: Vec<T> = Vec::with_capacity(size);
+        copy_nonoverlapping(
+            value.as_mut_ptr(),
+            buffer.as_mut_ptr() as *mut u8,
+            value.len(),
+        );
+        buffer
+    }
 }
 
 #[cfg(test)]

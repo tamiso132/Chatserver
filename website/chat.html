@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Chat Room</title>
+    <script src="chat/chat.js"></script>
+    <link rel="stylesheet" href="chat/chat.css">
+</head>
+
+
+<body>
+    <div id="main-panel">
+        <div id="chat-box">
+            <div class="chat-room-name">Room 1</div>
+            <div id="chat-content"></div>
+        </div>
+        <input type="text" id="message-input" placeholder="Type a message...">
+        <button id="send-button">Send</button>
+    </div>
+    <div id="side-panel">
+        <h2>Chat Rooms</h2>
+        <ul id="chat-rooms">
+            <li class="chat-room">Room 1</li>
+            <li class="chat-room">Room 2</li>
+            <li class="chat-room">Room 3</li>
+        </ul>
+    </div>
+
+    <div id="settings-menu">
+        <div id="settings-icon">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+        </div>
+        <div id="settings-options">
+            <ul>
+                <li id="create-room-option">Create Room</li>
+                <li id="add-friend-option">Add Friend</li>
+            </ul>
+        </div>
+    </div>
+    </div>
+
+    <div id="custom-dialog" class="hidden">
+        <div class="modal-container">
+            <div class="modal-content">
+                <h2>Create a Room and Invite Friends</h2>
+                <input type="text" id="fname" name="fname"><br><br>
+                <ul class="friend-list">
+                    <li>
+                        <input type="checkbox" class="friend-checkbox" id="friend1" value="Friend 1">
+                        <label for="friend1">Friend 1</label>
+                    </li>
+                    <li>
+                        <input type="checkbox" class="friend-checkbox" id="friend2" value="Friend 2">
+                        <label for="friend2">Friend 2</label>
+                    </li>
+                    <!-- Add more friends here -->
+                </ul>
+                <button id="confirm-button">Create Room</button>
+                <button id="cancel-button">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+
+
+</html>
