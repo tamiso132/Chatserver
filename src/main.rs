@@ -13,6 +13,7 @@ mod server;
 mod storage;
 
 const WEBSITE_PATH: &'static str = "./website/";
+const HEADER: u16 = 0x170 << 8 | 0x170;
 
 fn main() -> io::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
