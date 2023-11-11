@@ -2,11 +2,18 @@ use std::{
     fs,
     io::{self, BufRead, BufReader, Read, Write},
     net::{TcpListener, TcpStream},
-    sync::mpsc,
+    sync::{mpsc, Arc, Mutex},
     thread::{self, Builder},
 };
 
-use database::ThreadPool;
+use proc_macro::WhoAmI;
+
+#[derive(WhoAmI)]
+struct Point {
+    x: f64,
+    y: f64
+}
+
 
 pub mod relational;
 mod server;
@@ -31,7 +38,6 @@ fn main() -> io::Result<()> {
 fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
     let buf_reader = BufReader::new(&mut stream);
 
-    println!("HOW HOW HOW\n\n");
 
     let mut lines = buf_reader.lines();
     let request_line = lines.next().unwrap().unwrap();
@@ -72,7 +78,14 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
 
         println!("{}", website_path);
 
-        let contents = fs::read_to_string(website_path).unwrap();
+        let contents:String = match fs::read_to_string(website_path){
+            Ok(x) => {x},
+            Err(e) => {
+            let response = "HTTP/1.1 410 Gone\nContent-Type: text/plain";
+                stream.write_all(response.as_bytes()).unwrap();
+                return Err(e)
+            },
+        };
         let length = contents.len();
 
         let response = format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
@@ -84,31 +97,76 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-enum Request {
-    GET,  //
-    HEAD, //
-    POST,
-    PUT,
-    DELETE, //
-    TRACE,  //
-    PATCH,
+pub struct ThreadPool {
+    workers: Vec<Worker>,
+    sender: Option<mpsc::Sender<Job>>,
 }
+type Job = Box<dyn FnOnce() + Send + 'static>;
 
-#[derive(Default)]
-struct IpAdress {
-    ip: [u8; 4],
-    port: u16,
-}
+impl ThreadPool {
+    pub fn new(size: usize) -> io::Result<ThreadPool> {
+        assert!(size > 0);
 
-impl IpAdress {
-    fn print(&self) {
-        println!(
-            "{}.{}.{},{}:{}",
-            self.ip[0], self.ip[1], self.ip[2], self.ip[3], self.port
-        );
+        let (sender, receiver) = mpsc::channel();
+
+        let receiver = Arc::new(Mutex::new(receiver));
+
+        let mut workers = Vec::with_capacity(size);
+
+        for id in 0..size {
+            workers.push(Worker::new(id, Arc::clone(&receiver))?);
+        }
+
+        Ok(ThreadPool {
+            workers,
+            sender: Some(sender),
+        })
+    }
+
+    pub fn execute<F>(&self, f: F)
+    where
+        F: FnOnce() + Send + 'static,
+    {
+        let job = Box::new(f);
+
+        self.sender.as_ref().unwrap().send(job).unwrap();
     }
 }
 
-struct HtmlResponse {
-    request: Request,
+impl Drop for ThreadPool {
+    fn drop(&mut self) {
+        drop(self.sender.take());
+
+        for worker in &mut self.workers {
+            println!("Shutting down worker {}", worker.id);
+
+            if let Some(thread) = worker.thread.take() {
+                thread.join().unwrap();
+            }
+        }
+    }
+}
+
+struct Worker {
+    id: usize,
+    thread: Option<thread::JoinHandle<()>>,
+}
+
+impl Worker {
+    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> io::Result<Worker> {
+        let builder = Builder::new();
+
+        let thread = builder.spawn(move || loop {
+            let job = receiver.lock().unwrap().recv().unwrap();
+
+            println!("Worker {id} got a job; executing.");
+
+            job();
+        })?;
+
+        Ok(Worker {
+            id,
+            thread: Some(thread),
+        })
+    }
 }
