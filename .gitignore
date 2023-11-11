@@ -1,3 +1,5 @@
 /target
 /.VSCodeCounter
 /VSCodeCounter
+/target 
+proc_macro/target
