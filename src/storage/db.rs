@@ -1,21 +1,33 @@
-struct Table {
-    table_info_file: [u8; 5],
-    table_info: TableInfo,
+use serde_derive::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+struct User {
+    uuid: u128,
+    username: String,
+    password: String,
 }
 
-impl Table {
-    fn new(
-        table_info_file: [u8; 5],
-        file_path: [u8; 5],
-        size_of_element: u16,
-        number_of_element: u16,
-    ) -> Self {
-        TableInfo
-    }
+#[derive(Serialize, Deserialize)]
+struct PersonalUserInfo {
+    firstname: String,
+    lastname: String,
+    email: String,
 }
 
-struct TableInfo {
-    file_path: [u8; 5],
-    size_of_element: u16,
-    number_of_element: u16,
+struct ChatRooms {
+    uuid: u128,
+    chat_rooms: Vec<ChatRoom>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ChatRoom {
+    chat_name: String,
+    chat_room_index: u64,
+    username: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct Message {
+    user_index: u8,
+    message: String,
 }
