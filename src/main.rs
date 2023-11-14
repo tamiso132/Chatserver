@@ -160,9 +160,7 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
             }
         }
         Request::Put => {
-            if req.requested_file_path.parse::<u8>().unwrap() == PutEvent::Register as u8 {
-                
-            }
+            if req.requested_file_path.parse::<u8>().unwrap() == PutEvent::Register as u8 {}
         }
         Request::Delete => todo!(),
         Request::Connect => todo!(),
