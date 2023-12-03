@@ -1,5 +1,5 @@
 use std::{
-    fs,
+    fs::{self, File, OpenOptions},
     io::{self, BufRead, BufReader, Lines, Read, Write},
     net::{TcpListener, TcpStream},
     sync::{mpsc, Arc, Mutex},
@@ -8,6 +8,7 @@ use std::{
 };
 
 use http::{PostEvent, PutEvent, Response};
+use storage::db::{UserLogin, ResponseUser};
 
 use crate::http::{Accept, ConnectionType, IpAdress, Request};
 
@@ -15,18 +16,20 @@ mod http;
 mod server;
 mod storage;
 
+const STATUS_OK:&'static str = "HTTP/1.1 200 OK";
+const STATUS_GONE:&'static str = "HTTP/1.1 410 Gone";
 const WEBSITE_PATH: &'static str = "./website/";
-const HEADER: u16 = 0x170 << 8 | 0x170;
+const DATABASE_PATH: &'static str = "./database/";
 
 fn main() -> io::Result<()> {
-    let listener = TcpListener::bind("192.168.0.107:7878").unwrap();
+    let ip = "127.0.0.1:7878";
+    let listener = TcpListener::bind(ip).unwrap();
     let pool = ThreadPool::new(10)?;
-    println!("ip: 192.168.0.107:7878");
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
         pool.execute(|| match handle_connection(stream) {
-            Ok(o) => println!("good"),
+            Ok(o) => {},
             Err(e) => println!("{e}"),
         });
     }
@@ -57,7 +60,6 @@ fn tokenize_response(mut lines: Vec<String>) -> io::Result<Response> {
     let mut body = false;
     let mut body_txt = String::new();
     for l in lines {
-        println!("print: {}", &l);
         if l.contains("Host:") {
             let ip_txt_len = l.len();
             let ip_start_index = l.clone().find(':').unwrap() + 1;
@@ -119,15 +121,11 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
         let s = String::from_utf8(buffer.to_vec()).unwrap();
         http_request = s.split("\n").map(|f| f.to_string()).collect();
 
-        // http_request = buf_reader
-        //     .lines()
-        //     .map(|result| result.unwrap())
-        //     .take_while(|line| !line.is_empty())
-        //     .collect();
+     
     }
     let req = tokenize_response(http_request)?;
     let mut filename = req.requested_file_path.clone();
-    let status = "HTTP/1.1 200 OK";
+    let mut response_lines = vec![];
     match req.request {
         Request::Get => {
             if req.requested_file_path.is_empty() {
@@ -137,16 +135,48 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
                     filename = format!("{}{}", req.requested_file_path, ".html");
                 }
             }
+
+           
+
+
             let contents = match fs::read_to_string(format!("{}{}", WEBSITE_PATH, filename)) {
                 Ok(file) => file,
                 Err(e) => {
-                    let response = "HTTP/1.1 410 Gone\nContent-Type: text/plain";
-                    stream.write_all(response.as_bytes())?;
+                  send_gone(&mut stream)?;
                     return Err(e);
                 }
             };
-            let length = contents.len();
-            let response = format!("{status}\r\nContent-Length: {length}\r\n\r\n{contents}");
+
+            println!("FILENAME: {}", filename);
+
+            let index = filename.find(".");
+            let mut content_type = "e";
+            match index {
+                Some(i) => {
+                 
+                    let extension = &filename[i+1..filename.len()];
+                    if extension == "html"{
+                        content_type = "Content-Type: text/html";
+                    }
+                    else if extension == "js"{
+                        content_type = "Content-Type: application/javascript";
+                    }
+                },
+                None => {
+                    println!("ERROR? {}", filename);
+                },
+            }
+
+
+            let content_length = format!("Content-Length: {}", contents.len());
+
+            response_lines.push(STATUS_OK);
+            response_lines.push(content_type);
+            response_lines.push(content_length.as_str());
+            response_lines.push("");
+            response_lines.push(contents.as_str());
+
+            let response = response_lines.join("\n");
             stream.write_all(response.as_bytes())?;
         }
 
@@ -156,11 +186,19 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
                 let s = &req.body.unwrap();
                 let user = s[0..50].trim();
                 let password = s[50..s.len()].trim();
-                println!("{}\n{}", user, password);
             }
         }
         Request::Put => {
-            if req.requested_file_path.parse::<u8>().unwrap() == PutEvent::Register as u8 {}
+            let mut file = OpenOptions::new().append(true).open("").unwrap();
+
+            let info = serde_json::from_str::<ResponseUser>(req.body.unwrap().as_str());
+            match info {
+                Ok(x) => {
+                    file.write(" ");
+                },
+                Err(_) => todo!(),
+            }
+            
         }
         Request::Delete => todo!(),
         Request::Connect => todo!(),
@@ -169,6 +207,14 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
         Request::Patch => todo!(),
     }
 
+    Ok(())
+}
+
+fn send_gone(stream:&mut std::net::TcpStream) -> io::Result<()>{
+    let response = "HTTP/1.1 410 Gone\nContent-Type: text/plain";
+
+
+    stream.write_all(response.as_bytes())?;
     Ok(())
 }
 

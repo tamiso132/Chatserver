@@ -1,12 +1,10 @@
-const serverIp = '192.168.0.107';
-const serverPort = 7878;
 
 const PostEvent = {
     Login: 0,
 }
 
 // Function to make an HTTP GET request with custom headers
-async function fetchDataWithHeaders(url, customHeaders) {
+export async function fetchDataWithHeaders(url, customHeaders) {
     try {
         const response = await fetch(url, {
             method: 'GET',
@@ -28,19 +26,33 @@ async function fetchDataWithHeaders(url, customHeaders) {
     }
 }
 
-let username = "Tomas";
-let password = "Tommers";
 
-let user_send = username.padEnd(50, '\0');
-let pass = password.padEnd(50, '\0');
 
-console.log(user_send.length)
-console.log(pass.length)
-let packet = user_send.concat(pass);
-
-sendDataWithHeaders(PostEvent.Login, packet);
 // Function to make an HTTP POST request with custom headers
-async function sendDataWithHeaders(url, data, customHeaders) {
+export async function send_put(url, data){
+    try {
+        alert(url);
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                // Default headers, if any
+                'Content-Type': 'application/json',
+                // Custom headers
+            },
+            body: data,
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error sending data:', error);
+        throw error;
+    }
+}
+export async function send_post(url, data, customHeaders) {
     try {
         const response = await fetch(url, {
             method: 'POST',

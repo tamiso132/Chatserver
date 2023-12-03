@@ -1,3 +1,14 @@
+import {send_put} from "../shared/database.js"
+
+class RegisterUser{
+    constructor(firstname, lastname, username, password){
+        this.firstname = firstname;
+        this.lastname = lastname;
+        this.username = username;
+        this.password = password;
+    }
+}
+
 let first_name = document.getElementById("firstname");
 let last_name = document.getElementById("lastname");
 let username = document.getElementById("username");
@@ -7,13 +18,6 @@ let error_msg = document.getElementById("error-message");
 let btn_register = document.getElementById("register-button");
 
 document.addEventListener("DOMContentLoaded", function () {
-    // <input type="text" id="firstname" placeholder="First Name">
-    // <input type="text" id="lastname" placeholder="Last Name">
-    // <input type="text" id="username" placeholder="Username">
-    // <input type="password" id="password" placeholder="Password">
-    // <input type="password" id="confirm-password" placeholder="Confirm Password">
-    // <div id="error-message" style="color: red;">Please enter a valid email address.</div>
-    // <button id="register-button">Register</button>
 
     first_name = document.getElementById("firstname");
     last_name = document.getElementById("lastname");
@@ -26,7 +30,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
     btn_register.addEventListener('click', () => {
         if(CheckCorrect()){
-            // send info to database
+            alert("yeppers");
+            const new_user = new RegisterUser(first_name.value, last_name.value, username.value, password.value);
+            const data = JSON.stringify(new_user);
+            alert(data);
+            send_put("/users.json", JSON.stringify(new_user));
         }
     });
 });
@@ -40,28 +48,27 @@ function CheckCorrect() {
 
     let f_err = check_valid_txt(f_name, "The first name field", 1);
     let l_err = check_valid_txt(l_name, "The last name field", 1);
-    let u_err = check_valid_txt(u_name, "The username field", 10);
-    let p_err = check_valid_txt(p_name, "The password field", 10);
+    let u_err = check_valid_txt(u_name, "The username field", 1);
+    let p_err = check_valid_txt(p_name, "The password field", 1);
 
     error_msg.innerHTML = "";
     if (p_name != p2_name) {
         error_msg.innerHTML = "Passwords does not match";
-        return;
     }
 
-    if (f_err != " ") {
+    else if (f_err != " ") {
         error_msg.innerHTML = f_err
     }
 
-    if (l_err != " ") {
+    else if (l_err != " ") {
         error_msg.innerHTML = l_err
     }
 
-    if (u_err != " ") {
+    else if (u_err != " ") {
         error_msg.innerHTML = u_err
     }
 
-    if (p_err != " ") {
+    else if (p_err != " ") {
         error_msg.innerHTML = p_err
     }
 
