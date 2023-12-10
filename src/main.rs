@@ -8,7 +8,8 @@ use std::{
 };
 
 use http::{PostEvent, PutEvent, Response};
-use storage::db::{UserLogin, ResponseUser};
+use serde_json::json;
+use storage::{db::{UserLogin, ResponseUser}, register_new_user};
 
 use crate::http::{Accept, ConnectionType, IpAdress, Request};
 
@@ -147,7 +148,6 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
                 }
             };
 
-            println!("FILENAME: {}", filename);
 
             let index = filename.find(".");
             let mut content_type = "e";
@@ -182,19 +182,21 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
 
         Request::Head => todo!(),
         Request::Post => {
-            if req.requested_file_path.parse::<u8>().unwrap() == PostEvent::Login as u8 {
-                let s = &req.body.unwrap();
-                let user = s[0..50].trim();
-                let password = s[50..s.len()].trim();
-            }
+           
         }
         Request::Put => {
-            let mut file = OpenOptions::new().append(true).open("").unwrap();
-
             let info = serde_json::from_str::<ResponseUser>(req.body.unwrap().as_str());
             match info {
                 Ok(x) => {
-                    file.write(" ");
+                    match register_new_user(x.firstname, x.lastname, x.username, x.password){
+                        Ok(_) => {
+                            // SEND OK REQUEST
+                            stream.write(json!({"Request": "ok"}).to_string().as_bytes());
+                        },
+                        Err(_) => {
+                            stream.write(json!({"Request": "username exist"}).to_string().as_bytes());
+                        },
+                    }
                 },
                 Err(_) => todo!(),
             }
