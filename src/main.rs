@@ -51,7 +51,12 @@ fn tokenize_response(mut lines: Vec<String>) -> io::Result<Response> {
     let request_line = lines[0].clone();
 
     let req_start_index = 0;
-    let req_end_index = request_line.find('/').unwrap() - 1;
+    let req_end_index = match request_line.find('/') {
+        Some(i) => i - 1,
+        None => {
+            panic!("no /\n{:?}", lines);
+        }
+    };
     let http_start = request_line.find("HTTP/").unwrap();
 
     let req_txt = &request_line[req_start_index..req_end_index].trim();
@@ -130,52 +135,118 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
     let mut response_lines = vec![];
     match req.request {
         Request::Get => {
-            if req.requested_file_path.is_empty() {
-                filename = "index.html".to_string();
+            if req.requested_file_path.contains("get_users.json") {
+                let usernames = UserLogin::retrieve_all_users();
+                let usernames_json = json!({"usernames": usernames}).to_string();
+                let response = http::json_response(usernames_json);
+                stream.write(response.as_bytes());
             } else {
-                if req.accept_ext.html == true {
-                    filename = format!("{}{}", req.requested_file_path, ".html");
-                }
-            }
-
-            let contents = match fs::read_to_string(format!("{}{}", WEBSITE_PATH, filename)) {
-                Ok(file) => file,
-                Err(e) => {
-                    send_gone(&mut stream)?;
-                    return Err(e);
-                }
-            };
-
-            let index = filename.find(".");
-            let mut content_type = "e";
-            match index {
-                Some(i) => {
-                    let extension = &filename[i + 1..filename.len()];
-                    if extension == "html" {
-                        content_type = "Content-Type: text/html";
-                    } else if extension == "js" {
-                        content_type = "Content-Type: application/javascript";
+                if req.requested_file_path.is_empty() {
+                    filename = "index.html".to_string();
+                } else {
+                    if req.accept_ext.html == true {
+                        filename = format!("{}{}", req.requested_file_path, ".html");
                     }
                 }
-                None => {
-                    println!("ERROR? {}", filename);
+
+                let contents = match fs::read_to_string(format!("{}{}", WEBSITE_PATH, filename)) {
+                    Ok(file) => file,
+                    Err(e) => {
+                        send_gone(&mut stream)?;
+                        return Err(e);
+                    }
+                };
+
+                let index = filename.find(".");
+                let mut content_type = "e";
+                match index {
+                    Some(i) => {
+                        let extension = &filename[i + 1..filename.len()];
+                        if extension == "html" {
+                            content_type = "Content-Type: text/html";
+                        } else if extension == "js" {
+                            content_type = "Content-Type: application/javascript";
+                        }
+                    }
+                    None => {
+                        println!("ERROR? {}", filename);
+                    }
+                }
+
+                let content_length = format!("Content-Length: {}", contents.len());
+
+                response_lines.push(STATUS_OK);
+                response_lines.push(content_type);
+                response_lines.push(content_length.as_str());
+                response_lines.push("");
+                response_lines.push(contents.as_str());
+
+                let response = response_lines.join("\n");
+                stream.write_all(response.as_bytes())?;
+            }
+        }
+        Request::Head => todo!(),
+        Request::Post => {
+            let info: Value = serde_json::from_str(req.body.unwrap().as_str()).unwrap();
+            let request = info["request"].as_str().unwrap();
+
+            match request {
+                "login" => {
+                    match storage::login_user(
+                        info["username"].as_str().unwrap(),
+                        info["password"].as_str().unwrap(),
+                    ) {
+                        Ok(uuid) => {
+                            let body_json = json!({"request": "ok", "uuid":uuid}).to_string();
+                            let response = http::json_response(body_json);
+                            stream.write(response.as_bytes());
+                        }
+                        Err(e) => {
+                            let body_json = json!({"request": "failed"}).to_string();
+                            let response = http::json_response(body_json);
+                            stream.write(response.as_bytes());
+                        }
+                    }
+                }
+                "get-rooms" => {
+                    println!("Does it come here?");
+                    let uuid = info["uuid"].as_u64().unwrap();
+                    match storage::retrieve_all_rooms(uuid) {
+                        Ok(x) => {
+                            let json = json!({"chat_rooms": x, "request": "ok"});
+                            let response = http::json_response(json.to_string());
+                            stream.write(response.as_bytes());
+                        }
+                        Err(_) => {
+                            let json = json!({"request": "failed"});
+                            let response = http::json_response(json.to_string());
+                            stream.write(response.as_bytes());
+                        }
+                    }
+                }
+                "get-messages" => {
+                    let room_index = info["room_index"].as_u64().unwrap();
+                    let latest_message_index = info["message_index"].as_u64().unwrap();
+                    match storage::retrieve_latest_messages(room_index, latest_message_index) {
+                        Ok(message) => {
+                            let json_data =
+                                json!({"messages": message.0, "latest_index": message.1, "request": "ok"})
+                                    .to_string();
+                            let response = http::json_response(json_data);
+                            stream.write(response.as_bytes());
+                        }
+                        Err(_) => {
+                            let json_data = json!({ "request": "failed" }).to_string();
+                            let response = http::json_response(json_data);
+                            stream.write(response.as_bytes());
+                        }
+                    }
+                }
+                _ => {
+                    todo!()
                 }
             }
-
-            let content_length = format!("Content-Length: {}", contents.len());
-
-            response_lines.push(STATUS_OK);
-            response_lines.push(content_type);
-            response_lines.push(content_length.as_str());
-            response_lines.push("");
-            response_lines.push(contents.as_str());
-
-            let response = response_lines.join("\n");
-            stream.write_all(response.as_bytes())?;
         }
-
-        Request::Head => todo!(),
-        Request::Post => {}
         Request::Put => {
             let info: Value = serde_json::from_str(req.body.unwrap().as_str()).unwrap();
             let command = info["request"].as_str().unwrap();
@@ -188,9 +259,9 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
                     let password = info["password"].as_str().unwrap();
 
                     match register_new_user(firstname, lastname, username, password) {
-                        Ok(_) => {
+                        Ok(uuid) => {
                             // SEND OK REQUEST
-                            let response_json = json!({"request": "ok", "hello":"1"}).to_string();
+                            let response_json = json!({"request": "ok", "uuid": uuid}).to_string();
                             let response = http::json_response(response_json);
 
                             stream.write(response.as_bytes()).unwrap();
@@ -201,6 +272,30 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
                             stream.write(response.as_bytes());
                         }
                     }
+                }
+                "create-room" => {
+                    let my_uuid = info["my_uuid"].as_u64().unwrap();
+                    let chat_name = info["name"].as_str().unwrap();
+                    let usernames = {
+                        let usernames = info["usernames"].as_array().unwrap();
+                        let other_usernames: Vec<&str> = usernames
+                            .iter()
+                            .filter_map(|username| username.as_str())
+                            .collect();
+                        other_usernames
+                    };
+
+                    storage::create_room(chat_name, my_uuid, usernames)
+                }
+                "add-message" => {
+                    println!("{}", info.to_string());
+                    let room_index = info["room_index"].as_u64().unwrap();
+                    let username = info["username"].as_str().unwrap();
+                    let message = info["message"].as_str().unwrap();
+
+                    storage::send_message(message, username.to_string(), room_index);
+                    let respons = "HTTP/1.1 200 OK\nContent-Length: 0";
+                    stream.write(respons.as_bytes());
                 }
                 _ => {}
             }

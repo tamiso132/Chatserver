@@ -1,7 +1,7 @@
-import {send_put} from "../shared/database.js"
+import { send_put } from "../shared/database.js"
 
-class RegisterUser{
-    constructor(firstname, lastname, username, password){
+class RegisterUser {
+    constructor(firstname, lastname, username, password) {
         this.firstname = firstname;
         this.lastname = lastname;
         this.username = username;
@@ -29,16 +29,17 @@ document.addEventListener("DOMContentLoaded", function () {
 
 
     btn_register.addEventListener('click', async () => {
-        if(CheckCorrect()){
+        if (CheckCorrect()) {
             const new_user = new RegisterUser(first_name.value, last_name.value, username.value, password.value);
             new_user.request = "register";
             let message_back = await send_put("/users.json", JSON.stringify(new_user));
-            if (message_back.request != "ok"){
+            if (message_back.request != "ok") {
                 error_msg.textContent = "username already exist";
                 return;
             }
 
             // TODO, go to chat page
+            window.location.href = "/chat.html"
         }
     });
 });
