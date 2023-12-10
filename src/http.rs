@@ -1,4 +1,4 @@
-use std::default;
+use std::{default, net::TcpStream};
 
 pub struct Response {
     pub requested_file_path: String,
@@ -203,4 +203,12 @@ pub enum FetchSite {
     SameOrigin,
     SameSite,
     CrossOrigin,
+}
+
+pub fn json_response(json_data:String) -> String{
+    format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
+        json_data.len(),
+        json_data
+    )
 }

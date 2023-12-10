@@ -1,3 +1,4 @@
+export let uuid = -1;
 
 const PostEvent = {
     Login: 0,
@@ -46,7 +47,8 @@ export async function send_put(url, data){
             throw new Error(`HTTP error! Status: ${response.status}`);
         }
 
-        return await response.json();
+          // Parse the JSON response
+         return await response.json();
     } catch (error) {
         console.error('Error sending data:', error);
         throw error;

@@ -28,13 +28,17 @@ document.addEventListener("DOMContentLoaded", function () {
     btn_register = document.getElementById("register-button");
 
 
-    btn_register.addEventListener('click', () => {
+    btn_register.addEventListener('click', async () => {
         if(CheckCorrect()){
-            alert("yeppers");
             const new_user = new RegisterUser(first_name.value, last_name.value, username.value, password.value);
-            const data = JSON.stringify(new_user);
-            alert(data);
-            send_put("/users.json", JSON.stringify(new_user));
+            new_user.request = "register";
+            let message_back = await send_put("/users.json", JSON.stringify(new_user));
+            if (message_back.request != "ok"){
+                error_msg.textContent = "username already exist";
+                return;
+            }
+
+            // TODO, go to chat page
         }
     });
 });
@@ -46,10 +50,10 @@ function CheckCorrect() {
     let p_name = password.value;
     let p2_name = password2.value;
 
-    let f_err = check_valid_txt(f_name, "The first name field", 1);
-    let l_err = check_valid_txt(l_name, "The last name field", 1);
-    let u_err = check_valid_txt(u_name, "The username field", 1);
-    let p_err = check_valid_txt(p_name, "The password field", 1);
+    let f_err = check_valid_txt(f_name, "The first name field", 5);
+    let l_err = check_valid_txt(l_name, "The last name field", 5);
+    let u_err = check_valid_txt(u_name, "The username field", 6);
+    let p_err = check_valid_txt(p_name, "The password field", 6);
 
     error_msg.innerHTML = "";
     if (p_name != p2_name) {

@@ -8,8 +8,11 @@ use std::{
 };
 
 use http::{PostEvent, PutEvent, Response};
-use serde_json::json;
-use storage::{db::{UserLogin, ResponseUser}, register_new_user};
+use serde_json::{json, Value};
+use storage::{
+    db::{ResponseUser, UserLogin},
+    register_new_user,
+};
 
 use crate::http::{Accept, ConnectionType, IpAdress, Request};
 
@@ -17,8 +20,8 @@ mod http;
 mod server;
 mod storage;
 
-const STATUS_OK:&'static str = "HTTP/1.1 200 OK";
-const STATUS_GONE:&'static str = "HTTP/1.1 410 Gone";
+const STATUS_OK: &'static str = "HTTP/1.1 200 OK";
+const STATUS_GONE: &'static str = "HTTP/1.1 410 Gone";
 const WEBSITE_PATH: &'static str = "./website/";
 const DATABASE_PATH: &'static str = "./database/";
 
@@ -30,7 +33,7 @@ fn main() -> io::Result<()> {
     for stream in listener.incoming() {
         let stream = stream.unwrap();
         pool.execute(|| match handle_connection(stream) {
-            Ok(o) => {},
+            Ok(o) => {}
             Err(e) => println!("{e}"),
         });
     }
@@ -118,11 +121,9 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
     {
         let mut buffer = [0u8; 4096];
 
-        stream.read(&mut buffer).unwrap();
-        let s = String::from_utf8(buffer.to_vec()).unwrap();
+        let bytes_read = stream.read(&mut buffer).unwrap();
+        let s = String::from_utf8(buffer[0..bytes_read].to_vec()).unwrap();
         http_request = s.split("\n").map(|f| f.to_string()).collect();
-
-     
     }
     let req = tokenize_response(http_request)?;
     let mut filename = req.requested_file_path.clone();
@@ -137,36 +138,29 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
                 }
             }
 
-           
-
-
             let contents = match fs::read_to_string(format!("{}{}", WEBSITE_PATH, filename)) {
                 Ok(file) => file,
                 Err(e) => {
-                  send_gone(&mut stream)?;
+                    send_gone(&mut stream)?;
                     return Err(e);
                 }
             };
-
 
             let index = filename.find(".");
             let mut content_type = "e";
             match index {
                 Some(i) => {
-                 
-                    let extension = &filename[i+1..filename.len()];
-                    if extension == "html"{
+                    let extension = &filename[i + 1..filename.len()];
+                    if extension == "html" {
                         content_type = "Content-Type: text/html";
-                    }
-                    else if extension == "js"{
+                    } else if extension == "js" {
                         content_type = "Content-Type: application/javascript";
                     }
-                },
+                }
                 None => {
                     println!("ERROR? {}", filename);
-                },
+                }
             }
-
 
             let content_length = format!("Content-Length: {}", contents.len());
 
@@ -181,26 +175,50 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
         }
 
         Request::Head => todo!(),
-        Request::Post => {
-           
-        }
+        Request::Post => {}
         Request::Put => {
-            let info = serde_json::from_str::<ResponseUser>(req.body.unwrap().as_str());
-            match info {
-                Ok(x) => {
-                    match register_new_user(x.firstname, x.lastname, x.username, x.password){
+            let info: Value = serde_json::from_str(req.body.unwrap().as_str()).unwrap();
+            let command = info["request"].as_str().unwrap();
+
+            match command {
+                "register" => {
+                    let firstname = info["firstname"].as_str().unwrap();
+                    let lastname = info["lastname"].as_str().unwrap();
+                    let username = info["username"].as_str().unwrap();
+                    let password = info["password"].as_str().unwrap();
+
+                    match register_new_user(firstname, lastname, username, password) {
                         Ok(_) => {
                             // SEND OK REQUEST
-                            stream.write(json!({"Request": "ok"}).to_string().as_bytes());
-                        },
+                            let response_json = json!({"request": "ok", "hello":"1"}).to_string();
+                            let response = http::json_response(response_json);
+
+                            stream.write(response.as_bytes()).unwrap();
+                        }
                         Err(_) => {
-                            stream.write(json!({"Request": "username exist"}).to_string().as_bytes());
-                        },
+                            let response_json = json!({"request": "username exist"}).to_string();
+                            let response = http::json_response(response_json);
+                            stream.write(response.as_bytes());
+                        }
                     }
-                },
-                Err(_) => todo!(),
+                }
+                _ => {}
             }
-            
+
+            // match info {
+            //     Ok(x) => {
+            //         match register_new_user(x.firstname, x.lastname, x.username, x.password){
+            //             Ok(_) => {
+            //                 // SEND OK REQUEST
+            //                 stream.write(json!({"Request": "ok"}).to_string().as_bytes());
+            //             },
+            //             Err(_) => {
+            //                 stream.write(json!({"Request": "username exist"}).to_string().as_bytes());
+            //             },
+            //         }
+            //     },
+            //     Err(_) => todo!(),
+            // }
         }
         Request::Delete => todo!(),
         Request::Connect => todo!(),
@@ -212,9 +230,8 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn send_gone(stream:&mut std::net::TcpStream) -> io::Result<()>{
+fn send_gone(stream: &mut std::net::TcpStream) -> io::Result<()> {
     let response = "HTTP/1.1 410 Gone\nContent-Type: text/plain";
-
 
     stream.write_all(response.as_bytes())?;
     Ok(())
