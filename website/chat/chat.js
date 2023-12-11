@@ -8,7 +8,7 @@ if (Global.get_username() == undefined) {
 }
 
 let current_room_index;
-let message_indices = {};
+let message_indices = new Map();
 
 let chatBox;
 let chatRooms;
@@ -22,6 +22,7 @@ let settingsMenu;
 let settingsOptions;
 let usernameOptions;
 let rooms_parent;
+let chatname_input;
 
 document.addEventListener("DOMContentLoaded", async function () {
     // Your JavaScript code here
@@ -38,52 +39,97 @@ document.addEventListener("DOMContentLoaded", async function () {
     settingsOptions = document.getElementById("settings-options");
     usernameOptions = document.getElementById("username-options")
     rooms_parent = document.getElementById("chat-rooms");
+    chatname_input = document.getElementById("chatname-input");
     chatRooms.forEach((room) => {
         room.addEventListener("click", () => {
-            currentRoom = room.textContent;
-            chatRoomName.textContent = currentRoom;
-            chatContent.innerHTML = "";
+            on_room_click(room);
         });
     });
 
     sendButton.addEventListener("click", sendMessage);
-    createRoomButton.addEventListener("click", openCustomDialog("Chatroom", "", confirm_pressed));
-    let currentRoom = "Room 1"; // Default room
+    createRoomButton.addEventListener("click", openCustomDialog);
     settingsMenu.addEventListener("click", toggleSettingsOptions);
 
+    await sync_rooms();
+
+    setInterval(async function () {
+        await sync_rooms();
+    }, 2000);
+    setInterval(async function () {
+        await sync_chat();
+    }, 200);
+});
+
+async function on_room_click(room) {
+    chatRoomName.textContent = room.textContent;
+    chatContent.innerHTML = "";
+
+    current_room_index = room[1];
+    chatContent.innerHTML = "";
+
+
+    let messages = await Room.retrieve_messages(current_room_index, 0);
+    if (messages.request == "ok") {
+
+        message_indices.set(current_room_index, messages.latest_index);
+        messages.messages.forEach((message) => {
+            appendMessage(message.username, message.message);
+        });
+    }
+}
+
+async function sync_chat() {
+
+    if (current_room_index == undefined) {
+        return;
+    }
+
+    let messages = await Room.retrieve_messages(current_room_index, message_indices.get(current_room_index));
+    if (messages.request == "ok") {
+        message_indices.set(current_room_index, messages.latest_index);
+        messages.messages.forEach((message) => {
+            appendMessage(message.username, message.message);
+        });
+    }
+    else {
+    }
+}
+
+async function sync_rooms() {
     let response = await Room.retrieve_all();
-    console.log(response);
+    const allKeysArray = Array.from(message_indices.keys());
     if (response.request == "ok") {
         response.chat_rooms.forEach((room) => {
+
+            if (!message_indices.has(room[1])) {
+
+                message_indices.set(room[1], 0);
+            }
+            else {
+                return;
+            }
+
             const newRoom = document.createElement("li");
             newRoom.className = "chat-room";
             newRoom.textContent = room[0];
-            message_indices[room[1]] = 0;
             newRoom.addEventListener("click", async () => {
-
-                chatRoomName.textContent = newRoom.textContent;
-                current_room_index = room[1];
-                console.log(current_room_index);
-                chatContent.innerHTML = "";
-
-                let messages = await Room.retrieve_messages(room[1], message_indices[message_indices[room[1]]])
-                if (messages.request == "ok") {
-                    message_indices[room[1]] = messages.last_index;
-                    messages.messages.forEach((message) => {
-                        appendMessage(message.username, message.message);
-                    });
-                }
-                console.log(messages);
+                on_room_click(room);
             });
             rooms_parent.appendChild(newRoom);
         })
     }
-});
+}
 
 function confirm_pressed() {
     const selectedOptions = usernameOptions.selectedOptions;
     const selectedValues = Array.from(selectedOptions).map(option => option.value);
-    Room.create_room("testroom", Global.get_uuid(), selectedValues);
+    let chatname = chatname_input.value;
+    if (chatname == "") {
+        chatname = "default name"
+    }
+    Room.create_room(chatname, Global.get_uuid(), selectedValues);
+
+    closeCustomDialog();
 }
 
 function sendMessage() {
@@ -91,11 +137,12 @@ function sendMessage() {
     if (message.trim() === "") return;
     if (message == undefined) return;
 
-    appendMessage(Global.get_username(), message);
+    Room.send_message(current_room_index, message);
     messageInput.value = "";
+
 }
 
-async function openCustomDialog(title, setup_func, confirmFunc) {
+async function openCustomDialog() {
     customDialog.classList.remove("hidden");
 
     const confirmButton = document.getElementById("confirm-button");
@@ -104,7 +151,6 @@ async function openCustomDialog(title, setup_func, confirmFunc) {
     // TODO, get all info about users
     let users = await retrive_all_users();
     let username = Global.get_username();
-    console.log(username);
     users.forEach(user => {
         if (user != username) {
             const optionElement = document.createElement("option");
@@ -114,7 +160,7 @@ async function openCustomDialog(title, setup_func, confirmFunc) {
         }
     });
 
-    confirmButton.addEventListener("click", confirmFunc);
+    confirmButton.addEventListener("click", confirm_pressed);
     cancelButton.addEventListener("click", closeCustomDialog);
 }
 
@@ -123,6 +169,8 @@ function closeCustomDialog(confirmFunc) {
 
     const confirmButton = document.getElementById("confirm-button");
     const cancelButton = document.getElementById("cancel-button");
+
+    usernameOptions.innerHTML = '';
 
     confirmButton.removeEventListener("click", confirmFunc);
     cancelButton.removeEventListener("click", closeCustomDialog);
@@ -152,6 +200,7 @@ function createRoomAndInvite() {
     }
 }
 
+
 function appendMessage(sender, message) {
     // send message to db
     // TODO, send message to db
@@ -159,9 +208,9 @@ function appendMessage(sender, message) {
         return;
     }
 
-    const room_index = current_room_index;
-
-    Room.send_message(room_index, message);
+    if (sender == Global.get_username()) {
+        sender = "You";
+    }
 
     const messageDiv = document.createElement("div");
     messageDiv.innerHTML = `<strong>${sender}:</strong> ${message}`;

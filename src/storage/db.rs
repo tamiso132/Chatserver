@@ -268,7 +268,11 @@ fn create_chat_room() -> u64 {
                 .unwrap();
             index
         }
-        Err(_) => 0,
+        Err(_) => {
+            let json = json!({"value": 1});
+            chat_room_index.write_all_at(json.to_string().as_bytes(), 0);
+            0
+        }
     };
     let mut chat_room_index = OpenOptions::new()
         .read(true)
@@ -332,8 +336,10 @@ impl Message {
         match serde_json::from_str::<Vec<Message>>(&content) {
             Ok(mut msgs) => {
                 let b = msgs[latest_message_index as usize..msgs.len()].to_owned();
+                println!("{}: {}, {}", latest_message_index, msgs.len(), b.len());
+
                 if b.len() > 0 {
-                    Ok((b.to_vec(), msgs.len() - 1))
+                    Ok((b.to_vec(), msgs.len()))
                 } else {
                     Err(StorageError::HasNoMessages)
                 }

@@ -285,7 +285,8 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
                         other_usernames
                     };
 
-                    storage::create_room(chat_name, my_uuid, usernames)
+                    storage::create_room(chat_name, my_uuid, usernames);
+                    stream.write(http::ok_code().as_bytes());
                 }
                 "add-message" => {
                     println!("{}", info.to_string());
@@ -294,26 +295,10 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
                     let message = info["message"].as_str().unwrap();
 
                     storage::send_message(message, username.to_string(), room_index);
-                    let respons = "HTTP/1.1 200 OK\nContent-Length: 0";
-                    stream.write(respons.as_bytes());
+                    stream.write(http::ok_code().as_bytes());
                 }
                 _ => {}
             }
-
-            // match info {
-            //     Ok(x) => {
-            //         match register_new_user(x.firstname, x.lastname, x.username, x.password){
-            //             Ok(_) => {
-            //                 // SEND OK REQUEST
-            //                 stream.write(json!({"Request": "ok"}).to_string().as_bytes());
-            //             },
-            //             Err(_) => {
-            //                 stream.write(json!({"Request": "username exist"}).to_string().as_bytes());
-            //             },
-            //         }
-            //     },
-            //     Err(_) => todo!(),
-            // }
         }
         Request::Delete => todo!(),
         Request::Connect => todo!(),

@@ -35,7 +35,6 @@
         <div id="settings-options">
             <ul>
                 <li id="create-room-option">Create Room</li>
-                <li id="add-friend-option">Add Friend</li>
             </ul>
         </div>
     </div>
@@ -51,10 +50,19 @@
     <div id="custom-dialog" class="hidden">
         <div class="modal-container">
             <div class="modal-content">
-                <h2>Create a Room and Invite Friends</h2>
-                <select name="cars" id="username-options" multiple style="width: 200px;">
-                </select>
+                <h2>Create a Room with people</h2>
+                <label for="username-options">Select People</label>
                 <br><br>
+
+                <!-- Select for multiple options -->
+                <select name="cars" id="username-options" multiple style="width: 100px; height: 100px;">
+                    <!-- Options will be dynamically added using JavaScript -->
+                </select>
+
+                <br><br>
+
+                <label for="username-input">Enter chat name:</label>
+                <input type="text" id="chatname-input" placeholder="Your Name" style="width: 200px;">
 
                 <button id="confirm-button">Create Room</button>
                 <button id="cancel-button">Cancel</button>

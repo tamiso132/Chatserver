@@ -1,5 +1,7 @@
 use std::{default, net::TcpStream};
 
+use serde_json::json;
+
 pub struct Response {
     pub requested_file_path: String,
     pub request: Request,
@@ -205,10 +207,19 @@ pub enum FetchSite {
     CrossOrigin,
 }
 
-pub fn json_response(json_data:String) -> String{
+pub fn json_response(json_data: String) -> String {
     format!(
         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
         json_data.len(),
         json_data
+    )
+}
+
+pub fn ok_code() -> String {
+    let json = json!({"request": "ok"}).to_string();
+    format!(
+        "HTTP/1.1 200 OK\nContent-Length: {}\n\n{}",
+        json.len(),
+        json
     )
 }

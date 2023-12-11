@@ -63,7 +63,7 @@ export var Room = {
         data.room_index = room_index;
         data.username = Global.get_username();
 
-        send_put("/message.json", data);
+        send_put("/message.json", JSON.stringify(data));
     },
     retrieve_messages: async function (room_index, latest_message_index) {
 
@@ -72,7 +72,6 @@ export var Room = {
             "message_index": latest_message_index,
             "room_index": room_index,
         };
-        console.log(room_index, latest_message_index);
         return await send_post("/chat_rooms.json", JSON.stringify(data));
     }
 
