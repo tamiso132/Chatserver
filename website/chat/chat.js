@@ -47,6 +47,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
 
     sendButton.addEventListener("click", sendMessage);
+    // createRoomButton.addEventListener("click", openCustomDialog);
     createRoomButton.addEventListener("click", openCustomDialog);
     settingsMenu.addEventListener("click", toggleSettingsOptions);
 
@@ -150,6 +151,7 @@ async function openCustomDialog() {
 
     // TODO, get all info about users
     let users = await retrive_all_users();
+    console.log("first message");
     let username = Global.get_username();
     users.forEach(user => {
         if (user != username) {

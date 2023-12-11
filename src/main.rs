@@ -2,6 +2,7 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{self, BufRead, BufReader, Lines, Read, Write},
     net::{TcpListener, TcpStream},
+    ops::Add,
     sync::{mpsc, Arc, Mutex},
     thread::{self, Builder},
     time::Duration,
@@ -45,9 +46,6 @@ fn tokenize_response(mut lines: Vec<String>) -> io::Result<Response> {
         return Err(io::ErrorKind::InvalidData.into());
     }
 
-    for l in &lines {
-        println!("{l}");
-    }
     let request_line = lines[0].clone();
 
     let req_start_index = 0;
@@ -123,14 +121,15 @@ fn tokenize_response(mut lines: Vec<String>) -> io::Result<Response> {
 
 fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
     let http_request: Vec<_>;
+    let s;
     {
         let mut buffer = [0u8; 4096];
 
         let bytes_read = stream.read(&mut buffer).unwrap();
-        let s = String::from_utf8(buffer[0..bytes_read].to_vec()).unwrap();
-        http_request = s.split("\n").map(|f| f.to_string()).collect();
+        s = String::from_utf8(buffer[0..bytes_read].to_vec()).unwrap();
+        http_request = s.clone().split("\n").map(|f| f.to_string()).collect();
     }
-    let req = tokenize_response(http_request)?;
+    let req = tokenize_response(http_request.clone())?;
     let mut filename = req.requested_file_path.clone();
     let mut response_lines = vec![];
     match req.request {
@@ -209,7 +208,6 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
                     }
                 }
                 "get-rooms" => {
-                    println!("Does it come here?");
                     let uuid = info["uuid"].as_u64().unwrap();
                     match storage::retrieve_all_rooms(uuid) {
                         Ok(x) => {
@@ -253,6 +251,7 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
 
             match command {
                 "register" => {
+                    println!("{}", s);
                     let firstname = info["firstname"].as_str().unwrap();
                     let lastname = info["lastname"].as_str().unwrap();
                     let username = info["username"].as_str().unwrap();
@@ -289,13 +288,20 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
                     stream.write(http::ok_code().as_bytes());
                 }
                 "add-message" => {
-                    println!("{}", info.to_string());
                     let room_index = info["room_index"].as_u64().unwrap();
                     let username = info["username"].as_str().unwrap();
                     let message = info["message"].as_str().unwrap();
 
                     storage::send_message(message, username.to_string(), room_index);
                     stream.write(http::ok_code().as_bytes());
+                }
+                "file-sync" => {
+                    let directory = info["the-directory"].to_string();
+                    println!("\n\n{}", directory);
+                    let uuid = info["uuid"].as_u64().unwrap();
+                    let respons = storage::update_directory_sync(uuid, &directory);
+                    println!("{}", respons);
+                    stream.write(respons.as_bytes()).unwrap();
                 }
                 _ => {}
             }

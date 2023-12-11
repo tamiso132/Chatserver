@@ -1,3 +1,5 @@
+use serde_json::json;
+
 use self::db::{StorageError, UserLogin};
 
 pub(crate) mod db;
@@ -40,4 +42,16 @@ pub fn retrieve_latest_messages(
     latest_message_index: u64,
 ) -> Result<(Vec<db::Message>, usize), StorageError> {
     db::Message::retrieve_latest(room_index, latest_message_index)
+}
+
+pub fn update_directory_sync(uuid: u64, directory: &str) -> String {
+    let info = db::Directory::update_directory(uuid, directory);
+    let mut s = String::new();
+    for i in &info {
+        s.push_str(
+            &json!({"path": i.0, "Added files": i.1, "Removed files": i.2, "Changed files": i.3})
+                .to_string(),
+        );
+    }
+    s
 }

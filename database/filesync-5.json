@@ -1,0 +1,75 @@
+{
+  "name": "testdirectory",
+  "path": "testdirectory/",
+  "files": [
+    {
+      "name": "text.txt",
+      "size": 0,
+      "last_modified": {
+        "year": 2023,
+        "month": 12,
+        "day": 11,
+        "hour": 3,
+        "minute": 9,
+        "second": 41
+      }
+    },
+    {
+      "name": "yepper.txt",
+      "size": 0,
+      "last_modified": {
+        "year": 2023,
+        "month": 12,
+        "day": 11,
+        "hour": 3,
+        "minute": 36,
+        "second": 15
+      }
+    },
+    {
+      "name": "woho",
+      "size": 0,
+      "last_modified": {
+        "year": 2023,
+        "month": 12,
+        "day": 11,
+        "hour": 3,
+        "minute": 50,
+        "second": 2
+      }
+    }
+  ],
+  "directories": [
+    {
+      "name": "napio",
+      "path": "testdirectory/napio",
+      "files": [
+        {
+          "name": "hello.txt",
+          "size": 0,
+          "last_modified": {
+            "year": 2023,
+            "month": 12,
+            "day": 11,
+            "hour": 17,
+            "minute": 14,
+            "second": 53
+          }
+        },
+        {
+          "name": "hello.json",
+          "size": 0,
+          "last_modified": {
+            "year": 2023,
+            "month": 12,
+            "day": 11,
+            "hour": 2,
+            "minute": 53,
+            "second": 44
+          }
+        }
+      ],
+      "directories": null
+    }
+  ]
+}
