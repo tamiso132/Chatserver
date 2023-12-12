@@ -1,11 +1,16 @@
 use std::{
     fs::{self, File, OpenOptions},
     io::{Read, Write},
-    os::unix::fs::{DirEntryExt, FileExt},
 };
+#[cfg(target_os = "linux")]
+use std::os::unix::fs::{DirEntryExt, FileExt};
+
+#[cfg(target_os = "windows")]
+use std::os::windows::fs::FileExt;
+
 
 use chrono::{DateTime, Datelike, Timelike, Utc};
-use serde::ser::SerializeStruct;
+use serde::{ser::SerializeStruct, Serialize};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -25,6 +30,17 @@ pub struct UserLogin {
     username: String,
     password: String,
 }
+
+#[cfg(target_os = "windows")]
+fn write_all_at(file:&mut File, s:String){
+    file.seek_write(s.as_bytes(), 0);
+}
+
+#[cfg(target_os = "linux")]
+fn write_all_at(file:&mut File, s:String){
+    file.write_all_at(&s.as_bytes(), 0);
+}
+
 
 impl UserLogin {
     pub fn create_user(
@@ -67,7 +83,7 @@ impl UserLogin {
 
             let write_data = serde_json::to_string(&v).unwrap();
 
-            file.write_all_at(&write_data.as_bytes(), 0);
+            write_all_at(&mut file, write_data);
             return Ok(last_uuid);
         }
 
@@ -87,8 +103,7 @@ impl UserLogin {
                     password,
                 };
                 x.push(new_user);
-                file.write_all_at(&serde_json::to_string(&x).unwrap().as_bytes(), 0)
-                    .unwrap();
+                write_all_at(&mut file, serde_json::to_string(&x).unwrap());
                 Ok(last as u64)
             }
             Err(_) => todo!(),
@@ -214,12 +229,12 @@ impl UserChatRoom {
                 Ok(mut v) => {
                     v.push(new_chat.clone());
                     let data = serde_json::to_string(&v).unwrap();
-                    chat_info_file.write_all_at(data.as_bytes(), 0);
+                    write_all_at(&mut chat_info_file, data);
                 }
                 Err(e) => {
                     let v = vec![&new_chat];
                     let data = serde_json::to_string(&v).unwrap();
-                    chat_info_file.write_all_at(data.as_bytes(), 0);
+                    write_all_at(&mut chat_info_file, data);
                 }
             }
         }
@@ -266,14 +281,12 @@ fn create_chat_room() -> u64 {
         Ok(index) => {
             let mut index = index["value"].as_u64().unwrap();
             index += 1;
-            chat_room_index
-                .write_all_at(json!({"value": index}).to_string().as_bytes(), 0)
-                .unwrap();
+            write_all_at(&mut chat_room_index, json!({"value": index}).to_string());
             index
         }
         Err(_) => {
             let json = json!({"value": 1});
-            chat_room_index.write_all_at(json.to_string().as_bytes(), 0);
+            write_all_at(&mut chat_room_index, json!({"value": 1}).to_string());
             0
         }
     };
@@ -312,11 +325,11 @@ impl Message {
             Ok(mut msgs) => {
                 let msg = Message { username, message };
                 msgs.push(msg);
-                chat_room_index.write_all_at(serde_json::to_string(&msgs).unwrap().as_bytes(), 0);
+                write_all_at(&mut chat_room_index, serde_json::to_string(&msgs).unwrap());
             }
             Err(_) => {
                 let msg = vec![Message { username, message }];
-                chat_room_index.write_at(serde_json::to_string(&msg).unwrap().as_bytes(), 0);
+                write_all_at(&mut chat_room_index, serde_json::to_string(&msg).unwrap());
             }
         };
     }
@@ -339,7 +352,6 @@ impl Message {
         match serde_json::from_str::<Vec<Message>>(&content) {
             Ok(mut msgs) => {
                 let b = msgs[latest_message_index as usize..msgs.len()].to_owned();
-                println!("{}: {}, {}", latest_message_index, msgs.len(), b.len());
 
                 if b.len() > 0 {
                     Ok((b.to_vec(), msgs.len()))
@@ -352,7 +364,7 @@ impl Message {
     }
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 struct Date {
     year: u16,
     month: u8,
@@ -378,7 +390,7 @@ impl Date {
     }
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct FileData {
     name: String,
     size: u64,
@@ -436,6 +448,7 @@ impl serde::Serialize for Date {
     }
 }
 
+
 impl Directory {
     pub fn update_directory(
         uuid: u64,
@@ -457,10 +470,8 @@ impl Directory {
         match serde_json::from_str::<Directory>(&buffer) {
             Ok(dir) => {
                 let diff = Directory::check_diff_dir(dir.clone(), dir_sent.clone());
-                file_data.write_all_at(
-                    serde_json::to_string_pretty(&dir_sent).unwrap().as_bytes(),
-                    0,
-                );
+                write_all_at(&mut file_data, serde_json::to_string_pretty(&dir_sent).unwrap());
+                
                 diff
             }
             Err(e) => {
@@ -476,94 +487,99 @@ impl Directory {
                         file_changed.clone(),
                     ));
                 }
-                file_data.write_all_at(
-                    serde_json::to_string_pretty(&dir_sent).unwrap().as_bytes(),
-                    0,
-                );
+                write_all_at(&mut file_data,  serde_json::to_string_pretty(&dir_sent).unwrap());
                 ret
             }
         }
     }
 
-    fn check_diff_dir(
-        saved_directory: Directory,
-        sent_directory: Directory,
-    ) -> Vec<(String, Vec<FileData>, Vec<FileData>, Vec<FileData>)> {
+    fn check_diff_files(saved_directory: Directory,
+        sent_directory: Directory) -> Vec<(String, Option<Vec<FileData>>, Option<Vec<FileData>>, Option<Vec<FileData>>)>{
         let mut sent_files = sent_directory.files;
         let mut saved_files = saved_directory.files;
 
+        let saved_files_c = saved_files.clone();
+        let sent_files_c = sent_files.clone();
+        
+        //let mut new_files;
         let mut changed_files = vec![];
-        let mut new_files = vec![];
-        let mut files_removed = vec![];
 
+        let mut saved_index_to_remove = vec![];
+        let mut sent_index_to_remove = vec![];
+       // let mut removed_files;
+        for (sent_index,sent_file) in sent_files_c.iter().enumerate(){
+            'Inner: for (saved_index, saved_file) in saved_files_c.iter().enumerate(){
+                if sent_file.name == saved_file.name{
+                    if saved_file.last_modified.diff(&sent_file.last_modified){
+                        changed_files.push(*saved_file);
+                    }
+                    sent_index_to_remove.push(sent_index);
+                    saved_index_to_remove.push(saved_index);
+                    break 'Inner;
+                }
+            } 
+        }
+        let mut i = 0;
+        saved_files.retain(|_|{
+            let keep = !saved_index_to_remove.contains(&i);
+            i += 1;
+            keep
+        }); // missing files
+        i = 0;
+        sent_files.retain(|_|{
+            let keep = !sent_index_to_remove.contains(&i);
+            i += 1;
+            keep
+        }); // new files
+
+        let missing_files = if saved_files.len() == 0{
+            None
+        }
+        else{
+            Some(saved_files)
+        };
+
+        let new_files = if sent_files.len() == 0{
+            None
+        }
+        else{
+            Some(sent_files)
+        };
+
+        let changed_files = if changed_files.len() == 0{
+            None
+        }
+        else{
+            Some(changed_files)
+        };
+
+    vec![(saved_directory.path, new_files, missing_files, changed_files)]
+        
+    }
+    fn check_diff_dir(
+        saved_directory: Directory,
+        sent_directory: Directory,
+    ) -> Vec<(String, Option<Vec<FileData>>, Option<Vec<FileData>>, Option<Vec<FileData>>)> {
         let mut ret = vec![];
-        let mut remove_index = 0;
+       ret.extend(Self::check_diff_files(saved_directory, sent_directory));
+        
+    
+        todo!();
+        
+        
+    //    for f in 0..x.0.len(){
+    //     let mut buf = Vec::new();
+    //     let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
+    //     let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
+        
+    //     let obj = &json!({"Directory name": x.0[f], "Files": file_names[f]});
+    //     obj.serialize(&mut ser).unwrap();
 
-        for (saved_index, saved_file) in saved_files.clone().iter().enumerate() {
-            for (sent_index, sent_file) in sent_files.clone().into_iter().enumerate() {
-                if saved_file.name == sent_file.name {
-                    sent_files.remove(sent_index - remove_index);
-                    saved_files.remove(saved_index - remove_index);
-                    remove_index += 1;
+    //         txt.push_str(&String::from_utf8(buf).unwrap());
+    //    }
 
-                    if saved_file.last_modified.diff(&sent_file.last_modified) {
-                        changed_files.push(sent_file);
-                    }
-                    break;
-                }
-            }
-        }
+      
 
-        for sent in sent_files {
-            // files that are
-            new_files.push(sent);
-        }
-
-        for file in saved_files {
-            files_removed.push(file);
-        }
-
-        if sent_directory.directories.is_some() {
-            if saved_directory.directories.is_some() {
-                let mut send_dirs = sent_directory.directories.unwrap();
-                let mut saved_dirs = saved_directory.directories.unwrap();
-
-                for saved_dir in &saved_dirs {
-                    for (sent_dir_index, sent_dir) in send_dirs.clone().into_iter().enumerate() {
-                        if saved_dir.name == sent_dir.name {
-                            let diff = Self::check_diff_dir(saved_dir.to_owned(), sent_dir);
-                            for index in 0..diff.len() {
-                                ret.push((
-                                    diff[index].0.clone(),
-                                    diff[index].1.clone(),
-                                    diff[index].2.clone(),
-                                    diff[index].3.clone(),
-                                ))
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            let saved_dirs = saved_directory.directories.unwrap();
-            for dir in saved_dirs {
-                let dir_files = dir.get_files_in_dir();
-                let changed_files: Vec<FileData> = vec![];
-                let d = (dir_files.0, dir_files.1, changed_files);
-                for index in 0..d.0.len() {
-                    ret.push((d.0[index].clone(), d.1[index].clone(), vec![], vec![]));
-                }
-            }
-        }
-
-        ret.push((
-            saved_directory.name,
-            new_files,
-            files_removed,
-            changed_files,
-        ));
-
-        return ret;
     }
     fn get_files_in_dir(self) -> (Vec<String>, Vec<Vec<FileData>>) {
         let mut name = vec![];
@@ -585,4 +601,7 @@ impl Directory {
 
         (name, files)
     }
+}
+fn get_names_of_files(files: &Vec<Vec<FileData>>) -> Vec<Vec<String>>{
+    files.iter().map(|f| f.iter().map(|f| f.name.clone()).collect()).collect()
 }

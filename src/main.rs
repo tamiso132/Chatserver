@@ -297,7 +297,6 @@ fn handle_connection(mut stream: TcpStream) -> io::Result<()> {
                 }
                 "file-sync" => {
                     let directory = info["the-directory"].to_string();
-                    println!("\n\n{}", directory);
                     let uuid = info["uuid"].as_u64().unwrap();
                     let respons = storage::update_directory_sync(uuid, &directory);
                     println!("{}", respons);
