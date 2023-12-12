@@ -1,13 +1,12 @@
+#[cfg(target_os = "linux")]
+use std::os::unix::fs::{DirEntryExt, FileExt};
 use std::{
     fs::{self, File, OpenOptions},
     io::{Read, Write},
 };
-#[cfg(target_os = "linux")]
-use std::os::unix::fs::{DirEntryExt, FileExt};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::FileExt;
-
 
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use serde::{ser::SerializeStruct, Serialize};
@@ -32,15 +31,15 @@ pub struct UserLogin {
 }
 
 #[cfg(target_os = "windows")]
-fn write_all_at(file:&mut File, s:String){
+fn write_all_at(file: &mut File, s: String) {
+    file.set_len(0);
     file.seek_write(s.as_bytes(), 0);
 }
 
 #[cfg(target_os = "linux")]
-fn write_all_at(file:&mut File, s:String){
+fn write_all_at(file: &mut File, s: String) {
     file.write_all_at(&s.as_bytes(), 0);
 }
-
 
 impl UserLogin {
     pub fn create_user(
@@ -392,7 +391,7 @@ impl Date {
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct FileData {
-    name: String,
+    pub name: String,
     size: u64,
     last_modified: Date,
 }
@@ -448,12 +447,16 @@ impl serde::Serialize for Date {
     }
 }
 
-
 impl Directory {
     pub fn update_directory(
         uuid: u64,
         dir_sent: &str,
-    ) -> Vec<(String, Vec<FileData>, Vec<FileData>, Vec<FileData>)> {
+    ) -> Vec<(
+        String,
+        Option<Vec<FileData>>,
+        Option<Vec<FileData>>,
+        Option<Vec<FileData>>,
+    )> {
         let mut file_data = OpenOptions::new()
             .read(true)
             .write(true)
@@ -469,9 +472,12 @@ impl Directory {
 
         match serde_json::from_str::<Directory>(&buffer) {
             Ok(dir) => {
-                let diff = Directory::check_diff_dir(dir.clone(), dir_sent.clone());
-                write_all_at(&mut file_data, serde_json::to_string_pretty(&dir_sent).unwrap());
-                
+                let diff = Directory::difference_directory(dir.clone(), dir_sent.clone());
+                write_all_at(
+                    &mut file_data,
+                    serde_json::to_string_pretty(&dir_sent).unwrap(),
+                );
+
                 diff
             }
             Err(e) => {
@@ -487,106 +493,204 @@ impl Directory {
                         file_changed.clone(),
                     ));
                 }
-                write_all_at(&mut file_data,  serde_json::to_string_pretty(&dir_sent).unwrap());
-                ret
+                write_all_at(
+                    &mut file_data,
+                    serde_json::to_string_pretty(&dir_sent).unwrap(),
+                );
+                todo!();
             }
         }
     }
 
-    fn check_diff_files(saved_directory: Directory,
-        sent_directory: Directory) -> Vec<(String, Option<Vec<FileData>>, Option<Vec<FileData>>, Option<Vec<FileData>>)>{
+    pub fn get_file_names(files: Option<Vec<FileData>>) -> Option<Vec<String>> {
+        {
+            if files.is_some() {
+                let files = files.unwrap();
+                let names: Vec<String> = files.iter().map(|f| f.name.clone()).collect();
+                Some(names)
+            } else {
+                None
+            }
+        }
+    }
+    fn difference_files(
+        saved_directory: Directory,
+        sent_directory: Directory,
+    ) -> (
+        Option<String>,
+        Option<Vec<FileData>>,
+        Option<Vec<FileData>>,
+        Option<Vec<FileData>>,
+    ) {
         let mut sent_files = sent_directory.files;
         let mut saved_files = saved_directory.files;
 
         let saved_files_c = saved_files.clone();
         let sent_files_c = sent_files.clone();
-        
+
         //let mut new_files;
         let mut changed_files = vec![];
 
         let mut saved_index_to_remove = vec![];
         let mut sent_index_to_remove = vec![];
-       // let mut removed_files;
-        for (sent_index,sent_file) in sent_files_c.iter().enumerate(){
-            'Inner: for (saved_index, saved_file) in saved_files_c.iter().enumerate(){
-                if sent_file.name == saved_file.name{
-                    if saved_file.last_modified.diff(&sent_file.last_modified){
-                        changed_files.push(*saved_file);
+        // let mut removed_files;
+        for (sent_index, sent_file) in sent_files_c.iter().enumerate() {
+            'Inner: for (saved_index, saved_file) in saved_files_c.iter().enumerate() {
+                if sent_file.name == saved_file.name {
+                    if saved_file.last_modified.diff(&sent_file.last_modified) {
+                        changed_files.push(saved_file.clone());
                     }
                     sent_index_to_remove.push(sent_index);
                     saved_index_to_remove.push(saved_index);
                     break 'Inner;
                 }
-            } 
+            }
         }
         let mut i = 0;
-        saved_files.retain(|_|{
+        saved_files.retain(|_| {
             let keep = !saved_index_to_remove.contains(&i);
             i += 1;
             keep
         }); // missing files
         i = 0;
-        sent_files.retain(|_|{
+        sent_files.retain(|_| {
             let keep = !sent_index_to_remove.contains(&i);
             i += 1;
             keep
         }); // new files
 
-        let missing_files = if saved_files.len() == 0{
+        let missing_files = if saved_files.len() == 0 {
             None
-        }
-        else{
+        } else {
             Some(saved_files)
         };
 
-        let new_files = if sent_files.len() == 0{
+        let new_files = if sent_files.len() == 0 {
             None
-        }
-        else{
+        } else {
             Some(sent_files)
         };
 
-        let changed_files = if changed_files.len() == 0{
+        let changed_files = if changed_files.len() == 0 {
             None
-        }
-        else{
+        } else {
             Some(changed_files)
         };
 
-    vec![(saved_directory.path, new_files, missing_files, changed_files)]
-        
+        let path = if changed_files.is_none() && new_files.is_none() && missing_files.is_none() {
+            None
+        } else {
+            Some(saved_directory.path)
+        };
+
+        (path, new_files, missing_files, changed_files)
     }
-    fn check_diff_dir(
+    fn difference_directory(
         saved_directory: Directory,
         sent_directory: Directory,
-    ) -> Vec<(String, Option<Vec<FileData>>, Option<Vec<FileData>>, Option<Vec<FileData>>)> {
+    ) -> Vec<(
+        String,
+        Option<Vec<FileData>>,
+        Option<Vec<FileData>>,
+        Option<Vec<FileData>>,
+    )> {
         let mut ret = vec![];
-       ret.extend(Self::check_diff_files(saved_directory, sent_directory));
-        
-    
-        todo!();
-        
-        
-    //    for f in 0..x.0.len(){
-    //     let mut buf = Vec::new();
-    //     let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
-    //     let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
-        
-    //     let obj = &json!({"Directory name": x.0[f], "Files": file_names[f]});
-    //     obj.serialize(&mut ser).unwrap();
+        let files = Self::difference_files(saved_directory.clone(), sent_directory.clone());
+        if files.0.is_some() {
+            ret.push((files.0.unwrap(), files.1, files.2, files.3));
+        }
 
-    //         txt.push_str(&String::from_utf8(buf).unwrap());
-    //    }
+        if saved_directory.directories.is_none() && sent_directory.directories.is_none() {
+            return ret;
+        }
 
-      
+        if saved_directory.directories.is_none() {
+            // TODO, add all sent as new files
+            for e in sent_directory.directories.unwrap() {
+                let x = e.get_files_in_dir();
+                for index in 0..x.0.len() {
+                    ret.push((x.0[index].clone(), x.1[index].clone(), None, None));
+                }
+            }
+        } else if sent_directory.directories.is_none() {
+            // TODO, add all saved files as missing files
+            for e in saved_directory.directories.unwrap() {
+                let x = e.get_files_in_dir();
+                for index in 0..x.0.len() {
+                    ret.push((x.0[index].clone(), None, x.1[index].clone(), None));
+                }
+            }
+        } else {
+            // TODO, compare directiories
+            let mut saved_dirs = saved_directory.directories.unwrap();
+            let mut sent_dirs = sent_directory.directories.unwrap();
 
+            let mut saved_to_remove_indices = vec![];
+            let mut sent_to_remove_indices = vec![];
+
+            for (saved_index, saved_dir) in saved_dirs.clone().iter().enumerate() {
+                for (sent_index, sent_dir) in sent_dirs.iter().enumerate() {
+                    if saved_dir.name == sent_dir.name {
+                        saved_to_remove_indices.push(saved_index);
+                        sent_to_remove_indices.push(sent_index);
+                        let d = Self::difference_directory(saved_dir.clone(), sent_dir.clone());
+                        ret.extend(d);
+                    }
+                }
+            }
+            let mut i = 0;
+            sent_dirs.retain(|_| {
+                let keep = !sent_to_remove_indices.contains(&i);
+                i += 1;
+                keep
+            });
+
+            let mut i = 0;
+            saved_dirs.retain(|_| {
+                let keep = !saved_to_remove_indices.contains(&i);
+                i += 1;
+                keep
+            });
+
+            for e in sent_dirs {
+                // add new directories
+                let x = e.get_files_in_dir();
+                for index in 0..x.0.len() {
+                    ret.push((x.0[index].clone(), x.1[index].clone(), None, None));
+                }
+            }
+
+            for e in saved_dirs {
+                /// missing directories
+                let x = e.get_files_in_dir();
+                for index in 0..x.0.len() {
+                    ret.push((x.0[index].clone(), None, x.1[index].clone(), None));
+                }
+            }
+        }
+        ret
+
+        //    for f in 0..x.0.len(){
+        //     let mut buf = Vec::new();
+        //     let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
+        //     let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
+
+        //     let obj = &json!({"Directory name": x.0[f], "Files": file_names[f]});
+        //     obj.serialize(&mut ser).unwrap();
+
+        //         txt.push_str(&String::from_utf8(buf).unwrap());
+        //    }
     }
-    fn get_files_in_dir(self) -> (Vec<String>, Vec<Vec<FileData>>) {
+    fn get_files_in_dir(self) -> (Vec<String>, Vec<Option<Vec<FileData>>>) {
         let mut name = vec![];
         let mut files = vec![];
 
         name.push(self.name);
-        files.push(self.files);
+        if self.files.len() > 0 {
+            files.push(Some(self.files));
+        } else {
+            files.push(None);
+        }
 
         if self.directories.is_some() {
             let dirs = self.directories.unwrap();
@@ -602,6 +706,9 @@ impl Directory {
         (name, files)
     }
 }
-fn get_names_of_files(files: &Vec<Vec<FileData>>) -> Vec<Vec<String>>{
-    files.iter().map(|f| f.iter().map(|f| f.name.clone()).collect()).collect()
+fn get_names_of_files(files: &Vec<Vec<FileData>>) -> Vec<Vec<String>> {
+    files
+        .iter()
+        .map(|f| f.iter().map(|f| f.name.clone()).collect())
+        .collect()
 }
