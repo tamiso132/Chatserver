@@ -3,7 +3,7 @@ use serde_json::json;
 
 use crate::storage::db::FileData;
 
-use self::db::{StorageError, UserLogin};
+use self::db::{Directory, StorageError, UserLogin};
 
 pub(crate) mod db;
 
@@ -47,8 +47,6 @@ pub fn retrieve_latest_messages(
     db::Message::retrieve_latest(room_index, latest_message_index)
 }
 
-
-
 pub fn directory_sync_info(uuid: u64, directory: &str) {}
 
 pub fn update_directory_sync(uuid: u64, directory: &str) -> String {
@@ -59,9 +57,9 @@ pub fn update_directory_sync(uuid: u64, directory: &str) -> String {
     // }
     for dir in dirs {
         let dir_path = dir.0;
-        let added_files = get_file_names(dir.1);
-        let missing_files = get_file_names(dir.2);
-        let updated_files = get_file_names(dir.3);
+        let added_files = Directory::get_file_names(dir.1);
+        let missing_files = Directory::get_file_names(dir.2);
+        let updated_files = Directory::get_file_names(dir.3);
 
         let val = json!({"path": dir_path, "Added Files": added_files, "Removed Files": missing_files, "Updated Files": updated_files});
         let mut buf = Vec::new();

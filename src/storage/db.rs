@@ -486,18 +486,13 @@ impl Directory {
                 let file_changed: Vec<FileData> = vec![];
                 let mut ret = vec![];
                 for index in 0..f.0.len() {
-                    ret.push((
-                        f.0[index].clone(),
-                        f.1[index].clone(),
-                        file_remove.clone(),
-                        file_changed.clone(),
-                    ));
+                    ret.push((f.0[index].clone(), f.1[index].clone(), None, None));
                 }
                 write_all_at(
                     &mut file_data,
                     serde_json::to_string_pretty(&dir_sent).unwrap(),
                 );
-                todo!();
+                ret
             }
         }
     }
